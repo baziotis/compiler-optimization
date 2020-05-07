@@ -27,7 +27,7 @@ struct CFG {
 
     num_bbs = number_bbs;
     bbs.reserve(num_bbs);
-    bbs.length = num_bbs;
+    bbs.length(num_bbs);
 
     size_t set_size = BitSet64.sizeof * num_words(number_bbs);
     mem = calloc(set_size, number_bbs);
@@ -84,7 +84,7 @@ AlignedMemory aligned_memory(T, uint alignment)(int nelems) {
 }
 
 
-void compute_dominators(CFG cfg) {
+void compute_dominators(CFG cfg, Array!int rev_postorder) {
   // Initialize all the dominator sets except for the entry block
   // (i.e. 0)
   uint sz = cfg.size();
@@ -100,7 +100,7 @@ void compute_dominators(CFG cfg) {
   bool change;
   do {
     change = false;
-    for (uint i = 1; i < cfg.size(); ++i) {
+    foreach (int i ; rev_postorder) {
       BasicBlock *bb = &cfg[i];
       temp.light_all();
       foreach (pred ; bb.preds) {
@@ -136,6 +136,32 @@ void print_dominators(CFG cfg) {
   }
 }
 
+void reverse_postorder_helper(Array!int rev_postorder, Array!bool visited, CFG cfg, int v) {
+  foreach (int child ; cfg[v].succs) {
+    if (!visited[child]) {
+      visited[child] = true;
+      rev_postorder.insertBack(child);
+      reverse_postorder_helper(rev_postorder, visited, cfg, child);
+    }
+  }
+}
+
+// Reverse post-order DFS traversal
+Array!int reverse_postorder_dfs(CFG cfg) {
+  // Packed to use 1 bit per element.
+  Array!bool visited;
+  // Zero-initialized
+  visited.length(cfg.size());
+  visited[0] = true;
+
+  Array!int rev_postorder;
+  rev_postorder.reserve(cfg.size() - 1);
+
+  reverse_postorder_helper(rev_postorder, visited, cfg, 0);
+
+  return rev_postorder;
+}
+
 void main() {
   const int number_of_basic_blocks = 8;
   CFG cfg = CFG(number_of_basic_blocks);
@@ -148,9 +174,11 @@ void main() {
   cfg.add_edges(5, Succs(7));
   cfg.add_edges(6, Succs(4));
 
+  Array!int rev_postorder = reverse_postorder_dfs(cfg);
+
   import core.time : MonoTime;
   auto start = MonoTime.currTime;
-  compute_dominators(cfg);
+  compute_dominators(cfg, rev_postorder);
   auto end = MonoTime.currTime;
   print_dominators(cfg);
   writeln("\nTime: ", end - start);
