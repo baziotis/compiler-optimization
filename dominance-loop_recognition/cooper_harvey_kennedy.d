@@ -110,8 +110,7 @@ void compute_dominators(CFG cfg) {
     foreach_reverse (int i; postorder) {
       BasicBlock *bb = &cfg[i];
       int new_idom = bb.preds[0];
-      for (int pcount = 1; pcount < bb.preds.length; ++pcount) {
-        int pred = bb.preds[pcount];
+      foreach (pred ; bb.preds[1..bb.preds.length]) {
         if (cfg.idoms[pred] != CFG.UNDEFINED_IDOM) {
           new_idom = intersect(new_idom, pred, cfg.idoms, postorder_map);
         }
