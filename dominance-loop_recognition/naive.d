@@ -134,7 +134,6 @@ void compute_dominators(CFG cfg) {
       if (temp != bb.dominators) {
         change = true;
         assert(bb.dominators.copy(temp));
-        assert(cfg[i].dominators.nelems == temp.nelems);
       }
     }
   } while (change);
