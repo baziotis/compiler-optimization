@@ -261,7 +261,7 @@ T union_sets(T)(T a, T b) @nogc {
 }
 
 // Specialized function which comes up a lot of times in practice.
-BitSet union_equal_sets_in_place(BitSet a, BitSet b) {
+BitSet union_equal_sets_in_place(BitSet a, BitSet b) @nogc {
   assert(a.max_elems == b.max_elems);
   uint nelems = 0;
   uint nwords = num_words(a.max_elems);
@@ -273,7 +273,7 @@ BitSet union_equal_sets_in_place(BitSet a, BitSet b) {
   return a;
 }
 
-T intersect_sets(T)(T a, T b) {
+T intersect_sets(T)(T a, T b) @nogc {
   static if (is(T == BitSet64)) {
     return intersect_bitsets64(a, b);
   } else {
@@ -292,7 +292,7 @@ T intersect_sets(T)(T a, T b) {
 }
 
 // Specialized function which comes up a lot of times in practice.
-BitSet intersect_equal_sets_in_place(BitSet a, BitSet b) {
+BitSet intersect_equal_sets_in_place(BitSet a, BitSet b) @nogc {
   assert(a.max_elems == b.max_elems);
   uint nelems = 0;
   uint nwords = num_words(a.max_elems);
