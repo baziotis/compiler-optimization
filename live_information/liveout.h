@@ -135,6 +135,7 @@ BitSet *liveout_info(CFG cfg, int max_register) {
   int iteration = 1;
   do {
     changed = 0;
+    // TODO: Visit in postorder
     LOOPu32(i, 0, buf_len(cfg.bbs)) {
       BasicBlock bb = cfg.bbs[i];
       bset_copy(temp1, LiveOut[i]);
