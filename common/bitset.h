@@ -1,3 +1,6 @@
+#ifndef BITSET_H
+#define BITSET_H
+
 #include "stefanos.h"
 #include <string.h>
 
@@ -166,3 +169,5 @@ void union_equal_sets_in_place(BitSet a, BitSet b) {
     a.data[i] = union_bitsets64(a.data[i], b.data[i]);
   }
 }
+
+#endif

@@ -385,7 +385,37 @@ int count_bbs() {
   return res;
 }
 
-CFG parse_procedure(int *max_reg) {
+typedef struct EntireFile {
+	char *contents;
+	size_t contents_size;
+} EntireFile;
+
+EntireFile read_entire_file(const char *filename) {
+	EntireFile file;
+	FILE *handle = fopen(filename, "rb");
+	assert(handle);
+	
+	ssize_t start = ftell(handle);
+	fseek(handle, 0, SEEK_END);
+	ssize_t end = ftell(handle);
+	size_t file_size = end - start;
+	
+	fseek(handle, 0, SEEK_SET);
+	file.contents = (char*) malloc(file_size + 1);
+	assert(file.contents);
+	file.contents_size = file_size;
+	
+	fread(file.contents, sizeof(char), file_size, handle);
+  file.contents[file_size] = 0;
+	
+	fclose(handle);
+	return file;
+}
+
+CFG parse_procedure(const char *filename, int *max_reg) {
+  EntireFile file = read_entire_file(filename);
+  lex_init(file.contents);
+
   CFG cfg;
   int nbbs = count_bbs();
   printf("Number of BBs: %d\n", nbbs);
@@ -401,6 +431,11 @@ CFG parse_procedure(int *max_reg) {
   } else {
     cfg_construct(&cfg);
   }
-  *max_reg = __max_reg_used;
+  if (max_reg != NULL) {
+    *max_reg = __max_reg_used;
+  }
+
+  free(file.contents);
+
   return cfg;
 }

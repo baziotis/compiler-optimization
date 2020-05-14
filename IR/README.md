@@ -7,6 +7,9 @@ and transformations on it are actually meaningful.
 
 # Syntax and Structure
 
+This documentation should be read alongside the `/common/cfg.h` which provides
+type declarations and utilities for CFGs.
+
 First of all, this is not SSA (hopefully in the future I'll make a SSA builder).
 Then in this IR, only a single procedure is described per file. This CFG is made
 from BasicBlocks, which are the top-level entity. The rest is described in detail

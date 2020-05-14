@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 
 #define ARR_LEN(a) (sizeof(a) / sizeof(*a))
@@ -32,6 +33,19 @@ static int sadd(int x, int y) {
 
 #define LOOPu32(it, s, e) \
   for (uint32_t it = (s); it < (e); ++it)
+
+#define LOOP_REV(it, s, e) \
+  for (int it = (e) - 1; it >= (s); --it)
+
+#define TIME_STMT(stmt, out) \
+{ \
+  struct timeval s, e; \
+  gettimeofday(&s, NULL); \
+  stmt; \
+  gettimeofday(&e, NULL); \
+  out = (e.tv_sec - s.tv_sec) * 1e6; \
+  out = (time_taken + (e.tv_usec - s.tv_usec)) * 1e-6; \
+}
 
 #include "buf.h"
 
