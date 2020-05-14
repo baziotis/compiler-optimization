@@ -31,6 +31,8 @@ typedef struct DominatorTree {
   int *idoms;
 } DominatorTree;
 
+// This function is meant only for internal use. Use dtree_construct()
+// to get a DominatorTree
 static
 DominatorTree dtree_allocate(int number_bbs) {
   // Assert that the user must have accounted for entry and exit.
@@ -89,7 +91,48 @@ DominatorTree dtree_build(CFG cfg) {
     }
   } while (change);
 
+  buf_free(postorder_map);
+  buf_free(postorder);
+
   return dtree;
+}
+
+// Return the immediate dominator of `bb`
+int dtree_idom(DominatorTree dtree, int bb) {
+  return dtree.idoms[bb];
+}
+
+void dtree_free(DominatorTree dtree) {
+  buf_free(dtree.idoms);
+}
+
+int dtree_num_nodes(DominatorTree dtree) {
+  return buf_len(dtree.idoms);
+}
+
+// Arbitrary useful routines that are meant for debug purposes
+
+static
+void loop_and_print_dominators(DominatorTree dtree, int bb) {
+  int idom = bb;
+  printf("%d", idom);
+  if (idom == 0) {
+    printf("\n");
+    return;
+  }
+  do {
+    idom = dtree.idoms[idom];
+    printf(" %d", idom);
+  } while (idom != 0);
+  printf("\n");
+}
+
+static
+void print_dominators(CFG cfg, DominatorTree dtree) {
+  LOOP(i, 0, buf_len(cfg.bbs)) {
+    printf("%d: ", i);
+    loop_and_print_dominators(dtree, i);
+  }
 }
 
 #undef UNDEFINED_IDOM
