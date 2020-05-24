@@ -1,6 +1,12 @@
 #ifndef LIVEOUT_H
 #define LIVEOUT_H
 
+#include "../common/stefanos.h"
+#include "../common/bitset.h"
+#include "../common/cfg.h"
+#include "../common/parser_ir.h"
+#include "../common/utils.h"
+
 typedef struct LiveInitialInfo {
   BitSet *UEVar;
   BitSet *VarKill;
@@ -115,7 +121,13 @@ void liveout_solve_equ_for_bb(BitSet *LiveOut, LiveInitialInfo init_info,
 
 static
 BitSet *liveout_info(CFG cfg, int max_register) {
+  // Get initial info
   LiveInitialInfo init_info = liveout_gather_initial_info(cfg);
+
+  // Get postorder
+  int *postorder = postorder_dfs(cfg);
+
+  // Allocate memory for the bitsets
   int num_registers = max_register + 1;
   int nbbs = buf_len(cfg.bbs);
 
@@ -131,12 +143,13 @@ BitSet *liveout_info(CFG cfg, int max_register) {
   BitSet temp1 = bset_mem(num_registers, mem);
   BitSet temp2 = bset_mem(num_registers, mem + base_size);
 
+  // Main fixed-point loop.
   int changed = 0;
   int iteration = 1;
   do {
     changed = 0;
-    // TODO: Visit in postorder
-    LOOPu32(i, 0, buf_len(cfg.bbs)) {
+    LOOP(po_num, 0, buf_len(postorder)) {
+      int i = postorder[po_num];
       BasicBlock bb = cfg.bbs[i];
       bset_copy(temp1, LiveOut[i]);
       liveout_solve_equ_for_bb(LiveOut, init_info, temp2, i, bb.succs);
@@ -153,6 +166,7 @@ BitSet *liveout_info(CFG cfg, int max_register) {
   } while (changed);
 
   liveout_free_initial_info(init_info);
+  buf_free(postorder);
 
   return LiveOut;
 }

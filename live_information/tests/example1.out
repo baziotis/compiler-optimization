@@ -50,18 +50,12 @@ preds: 3    succs:
 	VarKill: 
 
 After iteration 1
-BB0: 0 
-BB1: 0 1 
-BB2: 0 1 
-BB3: 0 1 
-BB4: 
-After iteration 2
 BB0: 0 1 
 BB1: 0 1 
 BB2: 0 1 
 BB3: 0 1 
 BB4: 
-After iteration 3
+After iteration 2
 BB0: 0 1 
 BB1: 0 1 
 BB2: 0 1 
