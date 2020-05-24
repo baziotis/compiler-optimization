@@ -26,8 +26,11 @@ int *postorder_dfs(CFG cfg) {
   bset_add(visited, 0);
 
   int *postorder = NULL;
-  buf_reserve(postorder, cfg_size - 1);
+  buf_reserve(postorder, cfg_size);
   postorder_helper(postorder, visited, cfg, 0);
+  // Don't forget to push the entry block, which
+  // is not added by the helper.
+  buf_push(postorder, 0);
   bset_free(visited);
   return postorder;
 }

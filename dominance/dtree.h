@@ -71,10 +71,13 @@ DominatorTree dtree_build(CFG cfg) {
     postorder_map[postorder[i]] = i;
   }
 
+  assert(buf_len(postorder) >= 1);
   int change = 0;
   do {
     change = 0;
-    LOOP_REV(i, 0, buf_len(postorder)) {
+    // -1 because we don't want to visit
+    // the entry block, which is always 0.
+    LOOP_REV(i, 0, buf_len(postorder) - 1) {
       int bb_num = postorder[i];
       BasicBlock bb = cfg.bbs[bb_num];
       int new_idom = bb.preds[0];
