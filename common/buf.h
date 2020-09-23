@@ -14,8 +14,8 @@
 #endif
 
 typedef struct __BufHdr {
-    uint32_t len;
-    uint32_t cap;
+    size_t len;
+    size_t cap;
     char buf[];
 } __BufHdr;
 
@@ -30,7 +30,24 @@ typedef struct __BufHdr {
 #define buf_reserve(b, n) ((n) <= buf_cap(b) ? 0 : ((b) = buf__grow((b), (n), sizeof(*(b)))))
 #define buf_reserve_and_set(b, n) (buf_reserve(b, n), buf__hdr(b)->len = n)
 #define buf_push(b, ...) (buf_reserve((b), 1 + buf_len(b)), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
+#define buf_compact(b) ((buf_len(b) < buf_cap(b)) ? ((b) = buf__compact((b), sizeof(*(b)))) : 0 )
 #define buf_clear(b) ((b) ? buf__hdr(b)->len = 0 : 0)
+
+static
+void *buf__compact(void *b, size_t elem_size) {
+  size_t old_len = buf_len(b);
+  size_t old_cap = buf_cap(b);
+  if (old_len < old_cap) {
+    size_t new_size = offsetof(__BufHdr, buf) + old_len*elem_size;
+    __BufHdr *new_hdr;
+    new_hdr = realloc(buf__hdr(b), new_size);
+    assert(new_hdr);
+    new_hdr->len = old_len;
+    new_hdr->cap = old_len;
+    return new_hdr->buf;
+  }
+  return b;
+}
 
 static
 void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {

@@ -31,20 +31,22 @@ typedef struct DominatorTree {
   int *idoms;
 } DominatorTree;
 
-// This function is meant only for internal use. Use dtree_construct()
-// to get a DominatorTree
+// This function is meant only for internal use. Only use dtree_build().
 static
 DominatorTree dtree_allocate(int number_bbs) {
   // Assert that the user must have accounted for entry and exit.
   assert(number_bbs >= 2);
   DominatorTree dtree = { .idoms = NULL };
   buf_reserve_and_set(dtree.idoms, number_bbs);
+  return dtree;
+}
 
-  dtree.idoms[0] = 0;
-  LOOPu32(i, 1, number_bbs) {
+// At the start, all blocks have UNDEFINED_IDOM as their immediate
+// dominator.
+static void dtree_initialize(DominatorTree dtree) {
+  LOOPu32(i, 0, buf_len(dtree.idoms)) {
     dtree.idoms[i] = UNDEFINED_IDOM;
   }
-  return dtree;
 }
 
 static 
@@ -63,6 +65,7 @@ static
 DominatorTree dtree_build(CFG cfg) {
   uint32_t cfg_size = buf_len(cfg.bbs);
   DominatorTree dtree = dtree_allocate(cfg_size);
+  dtree_initialize(dtree);
   int *postorder = postorder_dfs(cfg);
   int *postorder_map = NULL;
   buf_reserve_and_set(postorder_map, cfg_size);
@@ -72,6 +75,8 @@ DominatorTree dtree_build(CFG cfg) {
   }
 
   assert(buf_len(postorder) >= 1);
+  // The entry block has itself as its immediate dominator.
+  dtree.idoms[0] = 0;
   int change = 0;
   do {
     change = 0;
@@ -101,14 +106,45 @@ DominatorTree dtree_build(CFG cfg) {
 }
 
 // Return the immediate dominator of `bb`
+static
 int dtree_idom(DominatorTree dtree, int bb) {
   return dtree.idoms[bb];
 }
 
+// Return true if BB no. `a` dominates BB no. ID `b`
+static
+int dtree_dominates(DominatorTree dtree, int a, int b) {
+  const int entry_block = 0;
+  // If `a` is the entry block, then it dominates any other
+  // block (and itself).
+  if (a == entry_block) {
+    return 1;
+  }
+  // Start from `b` and go upwards until you either
+  // find `a` and `a` dominates `b`, or we reach
+  // the entry and we return false (we have already
+  // tested that `a` is not the entry).
+  int runner = dtree.idoms[b];
+  while (runner != entry_block) {
+    if (runner == a)
+      return 1;
+    runner = dtree.idoms[runner];
+  }
+  return 0;
+}
+
+static
+int dtree_is_reachable_from_entry(DominatorTree dtree, int bb) {
+  // Does the entry block (block 0) dominate `bb`?
+  return dtree_dominates(dtree, 0, bb);
+}
+
+static
 void dtree_free(DominatorTree dtree) {
   buf_free(dtree.idoms);
 }
 
+static
 int dtree_num_nodes(DominatorTree dtree) {
   return buf_len(dtree.idoms);
 }

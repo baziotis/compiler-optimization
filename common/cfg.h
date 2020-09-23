@@ -59,6 +59,9 @@ typedef struct BasicBlock {
   Instruction *insts;
 } BasicBlock;
 
+// TODO: Since basic blocks are identified by ID, which is
+// an integer, it might be good to make a custom type, like
+// BasicBlockID or sth. and just use `int`.
 typedef struct CFG {
   BasicBlock *bbs;
 } CFG;
@@ -257,6 +260,16 @@ void cfg_add_edge(CFG cfg, int source, int dest) {
   assert(dest < buf_len(cfg.bbs));
   buf_push(cfg.bbs[source].succs, dest);
   buf_push(cfg.bbs[dest].preds, source);
+}
+
+static
+int bb_has_successor(BasicBlock a, int bb_id) {
+  int *succs = a.succs;
+  LOOP(i, 0, buf_len(succs)) {
+    if (succs[i] == bb_id)
+      return 1;
+  }
+  return 0;
 }
 
 /* Special CFG constructors */

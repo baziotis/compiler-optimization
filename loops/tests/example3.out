@@ -1,0 +1,3 @@
+Number of BBs: 8
+Loop: %4 <- %6
+  %4 %6 
