@@ -54,6 +54,7 @@ typedef struct Instruction {
 } Instruction;
 
 struct BasicBlock {
+  int num;
   Buf<int> succs;
   Buf<int> preds;
   Buf<Instruction> insts;
@@ -78,6 +79,9 @@ struct CFG {
   CFG(size_t nbbs) {
     bbs.reserve_and_set(nbbs);
     bbs.initialize();
+    LOOP(i, 0, bbs.len()) {
+      bbs[i].num = i;
+    }
   }
 
   void destruct() {
@@ -202,7 +206,7 @@ Instruction inst_br_cond(Value val, int lbl1, int lbl2) {
 
 static
 void inst_print_out(Instruction i) {
-  printf("| ");
+  printf("  ");
   switch (i.kind) {
   case INST_DEF:
     printf("%%%u <- ", i.reg);
@@ -211,22 +215,23 @@ void inst_print_out(Instruction i) {
     printf("PRINT ");
     break;
   case INST_BR_UNCOND:
-    printf("BR .%d\t\t|", i.uncond_lbl);
+    printf("BR .%d\t\t", i.uncond_lbl);
     return;
   case INST_BR_COND:
     printf("BR ");
     val_print(i.cond_val);
-    printf(", .%d, .%d\t|", i.then, i.els);
+    printf(", .%d, .%d\t", i.then, i.els);
     return;
   default:
     assert(0);
   }
   op_print(i.op);
-  printf("\t|");
 }
 
 static
 void bb_print(BasicBlock bb) {
+  printf("-----------------\n");
+  printf(".%d:         ;; ", bb.num);
   printf("preds: ");
   if (bb.preds.len()) {
     printf("%d", bb.preds[0]);
@@ -242,7 +247,6 @@ void bb_print(BasicBlock bb) {
     }
   }
   printf("\n");
-  printf("-----------------\n");
   for (Instruction inst : bb.insts) {
     inst_print_out(inst);
     printf("\n");

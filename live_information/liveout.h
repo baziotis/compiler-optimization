@@ -83,7 +83,6 @@ LiveInitialInfo liveout_gather_initial_info(CFG cfg) {
   }
 
   LOOPu32(i, 0, nbbs) {
-    printf("BB: %u\n", i);
     bb_print(cfg.bbs[i]);
     printf("\n");
     gather_info_for_block(cfg.bbs[i], res.UEVar[i], res.VarKill[i]);

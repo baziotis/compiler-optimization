@@ -1,70 +1,62 @@
 Number of BBs: 8
-BB: 0
-preds:     succs: 1
 -----------------
-| BR .1		|
------------------
-
-	UEVar: 
-	VarKill: 
-
-BB: 1
-preds: 0    succs: 2, 3
------------------
-| BR 10, .2, .3	|
+.0:         ;; preds:     succs: 1
+  BR .1		
 -----------------
 
 	UEVar: 
 	VarKill: 
 
-BB: 2
-preds: 1    succs: 7
 -----------------
-| BR .7		|
------------------
-
-	UEVar: 
-	VarKill: 
-
-BB: 3
-preds: 1    succs: 4
------------------
-| BR .4		|
+.1:         ;; preds: 0    succs: 2, 3
+  BR 10, .2, .3	
 -----------------
 
 	UEVar: 
 	VarKill: 
 
-BB: 4
-preds: 3, 6    succs: 5, 6
 -----------------
-| BR 7, .5, .6	|
------------------
-
-	UEVar: 
-	VarKill: 
-
-BB: 5
-preds: 4    succs: 7
------------------
-| BR .7		|
+.2:         ;; preds: 1    succs: 7
+  BR .7		
 -----------------
 
 	UEVar: 
 	VarKill: 
 
-BB: 6
-preds: 4    succs: 4
 -----------------
-| BR .4		|
+.3:         ;; preds: 1    succs: 4
+  BR .4		
 -----------------
 
 	UEVar: 
 	VarKill: 
 
-BB: 7
-preds: 2, 5    succs: 
 -----------------
+.4:         ;; preds: 3, 6    succs: 5, 6
+  BR 7, .5, .6	
+-----------------
+
+	UEVar: 
+	VarKill: 
+
+-----------------
+.5:         ;; preds: 4    succs: 7
+  BR .7		
+-----------------
+
+	UEVar: 
+	VarKill: 
+
+-----------------
+.6:         ;; preds: 4    succs: 4
+  BR .4		
+-----------------
+
+	UEVar: 
+	VarKill: 
+
+-----------------
+.7:         ;; preds: 2, 5    succs: 
 -----------------
 
 	UEVar: 
