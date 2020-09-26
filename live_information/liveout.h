@@ -8,8 +8,8 @@
 #include "../common/utils.h"
 
 typedef struct LiveInitialInfo {
-  BitSet *UEVar;
-  BitSet *VarKill;
+  Buf<BitSet> UEVar;
+  Buf<BitSet> VarKill;
 } LiveInitialInfo;
 
 static
@@ -34,8 +34,7 @@ void print_bitset(BitSet s) {
 // Assume bitsets are allocated and initialized to 0
 static
 void gather_info_for_block(const BasicBlock bb, BitSet UEVar, BitSet VarKill) {
-  LOOP(k, 0, buf_len(bb.insts)) {
-    Instruction i = bb.insts[k];
+  for (Instruction i : bb.insts) {
     switch (i.kind) {
     case INST_DEF:
     {
@@ -68,14 +67,14 @@ void gather_info_for_block(const BasicBlock bb, BitSet UEVar, BitSet VarKill) {
 static
 LiveInitialInfo liveout_gather_initial_info(CFG cfg) {
   LiveInitialInfo res = { .UEVar = NULL, .VarKill = NULL };
-  uint32_t nbbs = buf_len(cfg.bbs);
-  buf_reserve_and_set(res.UEVar, nbbs);
-  buf_reserve_and_set(res.VarKill, nbbs);
+  uint32_t nbbs = cfg.size();
+  res.UEVar.reserve_and_set(nbbs);
+  res.VarKill.reserve_and_set(nbbs);
 
   size_t base_size = sizeof(BitSet64) * num_words(nbbs);
-  void *mem = calloc(base_size, 2*nbbs);
-  void *p1 = mem;
-  void *p2 = mem + base_size*nbbs;
+  uint8_t *mem = (uint8_t *) calloc(base_size, 2*nbbs);
+  uint8_t *p1 = mem;
+  uint8_t *p2 = mem + base_size*nbbs;
   LOOPu32(i, 0, nbbs) {
     res.UEVar[i] = bset_mem(nbbs, p1);
     res.VarKill[i] = bset_mem(nbbs, p2);
@@ -100,17 +99,15 @@ LiveInitialInfo liveout_gather_initial_info(CFG cfg) {
 static
 void liveout_free_initial_info(LiveInitialInfo init_info) {
   bset_free(init_info.UEVar[0]);
-  buf_free(init_info.UEVar);
-  buf_free(init_info.VarKill);
+  init_info.UEVar.free();
+  init_info.VarKill.free();
 }
 
 static
-void liveout_solve_equ_for_bb(BitSet *LiveOut, LiveInitialInfo init_info,
-                              BitSet temp, uint32_t bb_num, int *succs) {
-  uint32_t num_succs = buf_len(succs);
+void liveout_solve_equ_for_bb(Buf<BitSet> LiveOut, LiveInitialInfo init_info,
+                              BitSet temp, uint32_t bb_num, const Buf<int> succs) {
   BitSet liveout_for_bb = LiveOut[bb_num];
-  LOOPu32(s, 0, num_succs) {
-    int succ = succs[s];
+  for (int succ : succs) {
     bset_copy(temp, init_info.VarKill[succ]);
     bset_not(temp);
     intersect_equal_sets_in_place(temp, LiveOut[succ]);
@@ -120,22 +117,22 @@ void liveout_solve_equ_for_bb(BitSet *LiveOut, LiveInitialInfo init_info,
 }
 
 static
-BitSet *liveout_info(CFG cfg, int max_register) {
+Buf<BitSet> liveout_info(CFG cfg, int max_register) {
   // Get initial info
   LiveInitialInfo init_info = liveout_gather_initial_info(cfg);
 
   // Get postorder
-  int *postorder = postorder_dfs(cfg);
+  Buf<int> postorder = postorder_dfs(cfg);
 
   // Allocate memory for the bitsets
   int num_registers = max_register + 1;
-  int nbbs = buf_len(cfg.bbs);
+  int nbbs = cfg.size();
 
   size_t base_size = sizeof(BitSet64) * num_words(num_registers);
   // +2 for the temps
-  void *mem = calloc(base_size, nbbs + 2);
-  BitSet *LiveOut = NULL;
-  buf_reserve_and_set(LiveOut, nbbs + 2);
+  uint8_t *mem = (uint8_t *) calloc(base_size, nbbs + 2);
+  Buf<BitSet> LiveOut;
+  LiveOut.reserve_and_set(nbbs + 2);
   LOOP(i, 0, nbbs) {
     LiveOut[i] = bset_mem(num_registers, mem);
     mem += base_size;
@@ -148,8 +145,7 @@ BitSet *liveout_info(CFG cfg, int max_register) {
   int iteration = 1;
   do {
     changed = 0;
-    LOOP(po_num, 0, buf_len(postorder)) {
-      int i = postorder[po_num];
+    for (int i : postorder) {
       BasicBlock bb = cfg.bbs[i];
       bset_copy(temp1, LiveOut[i]);
       liveout_solve_equ_for_bb(LiveOut, init_info, temp2, i, bb.succs);
@@ -158,7 +154,7 @@ BitSet *liveout_info(CFG cfg, int max_register) {
       }
     }
     printf("After iteration %d\n", iteration);
-    LOOPu32(i, 0, buf_len(cfg.bbs)) {
+    LOOPu32(i, 0, cfg.size()) {
       printf("BB%u: ", i);
       print_bitset(LiveOut[i]);
     }
@@ -166,15 +162,15 @@ BitSet *liveout_info(CFG cfg, int max_register) {
   } while (changed);
 
   liveout_free_initial_info(init_info);
-  buf_free(postorder);
+  postorder.free();
 
   return LiveOut;
 }
 
 static
-void liveout_free(BitSet *LiveOut) {
+void liveout_free(Buf<BitSet> LiveOut) {
   bset_free(LiveOut[0]);
-  buf_free(LiveOut);
+  LiveOut.free();
 }
 
 #endif

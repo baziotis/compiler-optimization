@@ -1,8 +1,6 @@
 #ifndef DOMTREE_H
 #define DOMTREE_H
 
-#include "../common/bitset.h"
-#include "../common/buf.h"
 #include "../common/cfg.h"
 #include "../common/parser_ir.h"
 #include "../common/stefanos.h"
@@ -27,127 +25,117 @@ obtained using the `idoms` array of the CFG. That is:
 We use the Cooper, Harvey, Kennedy Algorithm
 */
 
-typedef struct DominatorTree {
-  int *idoms;
-} DominatorTree;
+struct DominatorTree {
 
-// This function is meant only for internal use. Only use dtree_build().
-static
-DominatorTree dtree_allocate(int number_bbs) {
-  // Assert that the user must have accounted for entry and exit.
-  assert(number_bbs >= 2);
-  DominatorTree dtree = { .idoms = NULL };
-  buf_reserve_and_set(dtree.idoms, number_bbs);
-  return dtree;
-}
-
-// At the start, all blocks have UNDEFINED_IDOM as their immediate
-// dominator.
-static void dtree_initialize(DominatorTree dtree) {
-  LOOPu32(i, 0, buf_len(dtree.idoms)) {
-    dtree.idoms[i] = UNDEFINED_IDOM;
+  DominatorTree(size_t number_bbs) {
+    // Assert that the user must have accounted for entry and exit.
+    assert(number_bbs >= 2);
+    idoms.reserve_and_set(number_bbs);
   }
-}
 
-static 
-int intersect(int b1, int b2, const int *idoms, const int *postorder_map) {
-  while (b1 != b2) {
-    if (postorder_map[b1] < postorder_map[b2]) {
-      b1 = idoms[b1];
-    } else {
-      b2 = idoms[b2];
+  DominatorTree(CFG cfg) : DominatorTree(cfg.size()) {
+    this->build(cfg);
+  }
+  
+  void initialize() {
+    LOOP(i, 0, idoms.len()) {
+      idoms[i] = UNDEFINED_IDOM;
     }
   }
-  return b1;
-}
 
-static
-DominatorTree dtree_build(CFG cfg) {
-  uint32_t cfg_size = buf_len(cfg.bbs);
-  DominatorTree dtree = dtree_allocate(cfg_size);
-  dtree_initialize(dtree);
-  int *postorder = postorder_dfs(cfg);
-  int *postorder_map = NULL;
-  buf_reserve_and_set(postorder_map, cfg_size);
-  postorder_map[0] = cfg_size - 1;
-  LOOPu32(i, 0, buf_len(postorder)) {
-    postorder_map[postorder[i]] = i;
-  }
+  void build(CFG cfg) {
+    this->initialize();
+    Buf<int> postorder = postorder_dfs(cfg);
+    Buf<int> postorder_map;
+    postorder_map.reserve_and_set(cfg.size());
+    postorder_map[0] = cfg.size() - 1;
+    LOOPu32(i, 0, postorder.len()) {
+      postorder_map[postorder[i]] = i;
+    }
 
-  assert(buf_len(postorder) >= 1);
-  // The entry block has itself as its immediate dominator.
-  dtree.idoms[0] = 0;
-  int change = 0;
-  do {
-    change = 0;
-    // -1 because we don't want to visit
-    // the entry block, which is always 0.
-    LOOP_REV(i, 0, buf_len(postorder) - 1) {
-      int bb_num = postorder[i];
-      BasicBlock bb = cfg.bbs[bb_num];
-      int new_idom = bb.preds[0];
-      LOOP(j, 1, buf_len(bb.preds)) {
-        int pred = bb.preds[j];
-        if (dtree.idoms[pred] != UNDEFINED_IDOM) {
-          new_idom = intersect(new_idom, pred, dtree.idoms, postorder_map);
+    // The entry block has itself as its immediate dominator.
+    idoms[0] = 0;
+    int change = 0;
+    do {
+      change = 0;
+      // -1 because we don't want to visit
+      // the entry block, which is always 0.
+      assert(postorder.len() >= 1);
+      LOOP_REV(i, 0, postorder.len() - 1) {
+        int bb_num = postorder[i];
+        BasicBlock bb = cfg.bbs[bb_num];
+        int new_idom = bb.preds[0];
+        LOOP(j, 1, bb.preds.len()) {
+          int pred = bb.preds[j];
+          if (idoms[pred] != UNDEFINED_IDOM) {
+            new_idom = intersect(new_idom, pred, idoms, postorder_map);
+          }
+        }
+        if (idoms[bb_num] != new_idom) {
+          idoms[bb_num] = new_idom;
+          change = 1;
         }
       }
-      if (dtree.idoms[bb_num] != new_idom) {
-        dtree.idoms[bb_num] = new_idom;
-        change = 1;
+    } while (change);
+  }
+
+  // Return the immediate dominator of `bb`
+  int idom(int bb) const {
+    return idoms[bb];
+  }
+
+  // Return true if BB no. `a` dominates BB no. `b`
+  bool dominates(int a, int b) const {
+    static constexpr int entry_block = 0;
+    // If `a` is the entry block, then it dominates any other
+    // block (and itself).
+    if (a == entry_block) {
+      return 1;
+    }
+    // Start from `b` and go upwards until you either
+    // find `a` and `a` dominates `b`, or we reach
+    // the entry and we return false (we have already
+    // tested that `a` is not the entry).
+    int runner = idoms[b];
+    while (runner != entry_block) {
+      if (runner == a)
+        return 1;
+      runner = idoms[runner];
+    }
+    return 0;
+  }
+  
+  bool is_reachable_from_entry(int bb) const {
+    return dominates(0, bb);
+  }
+
+  size_t size() const {
+    return idoms.len();
+  }
+
+  void free() {
+    idoms.free();
+  }
+
+private:
+
+  static 
+  int intersect(int b1, int b2, const Buf<int> idoms, Buf<int> postorder_map) {
+    while (b1 != b2) {
+      if (postorder_map[b1] < postorder_map[b2]) {
+        b1 = idoms[b1];
+      } else {
+        b2 = idoms[b2];
       }
     }
-  } while (change);
-
-  buf_free(postorder_map);
-  buf_free(postorder);
-
-  return dtree;
-}
-
-// Return the immediate dominator of `bb`
-static
-int dtree_idom(DominatorTree dtree, int bb) {
-  return dtree.idoms[bb];
-}
-
-// Return true if BB no. `a` dominates BB no. ID `b`
-static
-int dtree_dominates(DominatorTree dtree, int a, int b) {
-  const int entry_block = 0;
-  // If `a` is the entry block, then it dominates any other
-  // block (and itself).
-  if (a == entry_block) {
-    return 1;
+    return b1;
   }
-  // Start from `b` and go upwards until you either
-  // find `a` and `a` dominates `b`, or we reach
-  // the entry and we return false (we have already
-  // tested that `a` is not the entry).
-  int runner = dtree.idoms[b];
-  while (runner != entry_block) {
-    if (runner == a)
-      return 1;
-    runner = dtree.idoms[runner];
-  }
-  return 0;
-}
 
-static
-int dtree_is_reachable_from_entry(DominatorTree dtree, int bb) {
-  // Does the entry block (block 0) dominate `bb`?
-  return dtree_dominates(dtree, 0, bb);
-}
+  /// Members ///
 
-static
-void dtree_free(DominatorTree dtree) {
-  buf_free(dtree.idoms);
-}
+  Buf<int> idoms;
+};
 
-static
-int dtree_num_nodes(DominatorTree dtree) {
-  return buf_len(dtree.idoms);
-}
 
 // Arbitrary useful routines that are meant for debug purposes
 
@@ -160,7 +148,7 @@ void loop_and_print_dominators(DominatorTree dtree, int bb) {
     return;
   }
   do {
-    idom = dtree.idoms[idom];
+    idom = dtree.idom(idom);
     printf(" %d", idom);
   } while (idom != 0);
   printf("\n");
@@ -168,7 +156,7 @@ void loop_and_print_dominators(DominatorTree dtree, int bb) {
 
 static
 void print_dominators(CFG cfg, DominatorTree dtree) {
-  LOOP(i, 0, buf_len(cfg.bbs)) {
+  LOOP(i, 0, cfg.size()) {
     printf("%d: ", i);
     loop_and_print_dominators(dtree, i);
   }
@@ -177,53 +165,54 @@ void print_dominators(CFG cfg, DominatorTree dtree) {
 #undef UNDEFINED_IDOM
 
 
-/* Benchmark utilities */
-
-static
-void dtree_benchmark_comp_and_count(CFG cfg, int nelems) {
-  double time_taken;
-  TIME_STMT(dtree_build(cfg), time_taken);
-  printf("Benchmark CHK: %d elements: %.4lfs\n", nelems, time_taken);
-}
-
-static
-void dtree_benchmark_linear(int nelems) {
-  CFG cfg = linear_cfg(nelems);
-  dtree_benchmark_comp_and_count(cfg, nelems);
-  cfg_destruct(&cfg);
-}
-
-static
-void dtree_benchmark_fwdback(int nelems) {
-  CFG cfg = fwdback_cfg(nelems);
-  dtree_benchmark_comp_and_count(cfg, nelems);
-  cfg_destruct(&cfg);
-}
-
-static
-void dtree_benchmark_manypred(int nelems) {
-  CFG cfg = manypred_cfg(nelems);
-  dtree_benchmark_comp_and_count(cfg, nelems);
-  cfg_destruct(&cfg);
-}
-
-void dtree_benchmark(void) {
-  int set[] = { 10, 50, 100, 200, 500, 800, 1000, 1500, 2000, 4000, 8000 };
-  printf("--- Linear ---\n");
-  LOOP(i, 0, ARR_LEN(set)) {
-    dtree_benchmark_linear(set[i]);
-  }
-  printf("\n");
-  printf("--- FwdBack ---\n");
-  LOOP(i, 0, ARR_LEN(set)) {
-    dtree_benchmark_fwdback(set[i]);
-  }
-  printf("\n");
-  printf("--- ManyPred ---\n");
-  LOOP(i, 0, ARR_LEN(set)) {
-    dtree_benchmark_manypred(set[i]);
-  }
-  printf("\n");
-}
+///* Benchmark utilities */
+//
+//static
+//void dtree_benchmark_comp_and_count(CFG cfg, int nelems) {
+//  double time_taken;
+//  DominatorTree dtree(cfg.size());
+//  TIME_STMT(dtree.build(cfg), time_taken);
+//  printf("Benchmark CHK: %d elements: %.4lfs\n", nelems, time_taken);
+//}
+//
+//static
+//void dtree_benchmark_linear(int nelems) {
+//  CFG cfg = linear_cfg(nelems);
+//  dtree_benchmark_comp_and_count(cfg, nelems);
+//  cfg_destruct(&cfg);
+//}
+//
+//static
+//void dtree_benchmark_fwdback(int nelems) {
+//  CFG cfg = fwdback_cfg(nelems);
+//  dtree_benchmark_comp_and_count(cfg, nelems);
+//  cfg_destruct(&cfg);
+//}
+//
+//static
+//void dtree_benchmark_manypred(int nelems) {
+//  CFG cfg = manypred_cfg(nelems);
+//  dtree_benchmark_comp_and_count(cfg, nelems);
+//  cfg_destruct(&cfg);
+//}
+//
+//void dtree_benchmark(void) {
+//  int set[] = { 10, 50, 100, 200, 500, 800, 1000, 1500, 2000, 4000, 8000 };
+//  printf("--- Linear ---\n");
+//  LOOP(i, 0, ARR_LEN(set)) {
+//    dtree_benchmark_linear(set[i]);
+//  }
+//  printf("\n");
+//  printf("--- FwdBack ---\n");
+//  LOOP(i, 0, ARR_LEN(set)) {
+//    dtree_benchmark_fwdback(set[i]);
+//  }
+//  printf("\n");
+//  printf("--- ManyPred ---\n");
+//  LOOP(i, 0, ARR_LEN(set)) {
+//    dtree_benchmark_manypred(set[i]);
+//  }
+//  printf("\n");
+//}
 
 #endif

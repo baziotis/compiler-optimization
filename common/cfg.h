@@ -1,6 +1,7 @@
 #ifndef CFG_H
 #define CFG_H
 
+#include <new>
 #include <stdio.h>
 
 #include "buf.h"
@@ -29,7 +30,6 @@ typedef struct Operation {
   Value lhs, rhs;
 } Operation;
 
-
 typedef enum INST {
   INST_DEF,
   INST_PRINT,
@@ -53,18 +53,67 @@ typedef struct Instruction {
   };
 } Instruction;
 
-typedef struct BasicBlock {
-  int *succs;
-  int *preds;
-  Instruction *insts;
-} BasicBlock;
+struct BasicBlock {
+  Buf<int> succs;
+  Buf<int> preds;
+  Buf<Instruction> insts;
+
+  BasicBlock() {}
+
+  bool has_successor(int bb_id) const {
+    for (int succ : succs) {
+      if (succ == bb_id)
+        return true;
+    }
+    return false;
+  }
+};
 
 // TODO: Since basic blocks are identified by ID, which is
 // an integer, it might be good to make a custom type, like
 // BasicBlockID or sth. and just use `int`.
-typedef struct CFG {
-  BasicBlock *bbs;
-} CFG;
+struct CFG {
+  Buf<BasicBlock> bbs;
+
+  CFG(size_t nbbs) {
+    bbs.reserve_and_set(nbbs);
+    bbs.initialize();
+  }
+
+  void destruct() {
+    for (BasicBlock &bb : bbs) {
+      bb.insts.free();
+      bb.preds.free();
+      bb.succs.free();
+    }
+    bbs.free();
+  }
+
+  // Add edges b -> [succs], where b is indexed basic block
+  // in cfg.bbs. Set both succs and preds.
+  void add_edges(int b, Buf<int> succs) {
+    assert(b < this->size());
+    BasicBlock *bb = &(this->bbs[b]);
+    assert(bb->succs.len() == 0);
+    bb->succs.reserve(succs.len());
+    for (int succ : succs) {
+      assert(succ < this->size());
+      bb->succs.push(succ);
+      this->bbs[succ].preds.push(b);
+    }
+  }
+
+  void add_edge(int source, int dest) {
+    assert(source < this->size());
+    assert(dest < this->size());
+    this->bbs[source].succs.push(dest);
+    this->bbs[dest].preds.push(source);
+  }
+
+  size_t size() const {
+    return bbs.len();
+  }
+};
 
 // IMPORTANT: This setup of Value requires to strip it every time
 // you use it.
@@ -86,9 +135,7 @@ Value val_reg(uint32_t r) {
 }
 
 static
-VAL val_kind(Value v) {
-  return (VAL) (v >> 31);
-}
+VAL val_kind(Value v) { return (VAL)(v >> 31); }
 
 static
 Value val_strip_kind(Value v) {
@@ -108,13 +155,13 @@ void val_print(Value v) {
 
 static
 Operation op_simple(Value lhs) {
-  Operation o = { .kind = OP_SIMPLE, .lhs = lhs };
+  Operation o = {.kind = OP_SIMPLE, .lhs = lhs};
   return o;
 }
 
 static
 Operation op_add(Value lhs, Value rhs) {
-  Operation o = { .kind = OP_ADD, .lhs = lhs, .rhs = rhs };
+  Operation o = {.kind = OP_ADD, .lhs = lhs, .rhs = rhs};
   return o;
 }
 
@@ -129,26 +176,27 @@ void op_print(Operation op) {
 
 static
 Instruction inst_def(uint32_t reg, Operation op) {
-  Instruction i = { .kind = INST_DEF, .reg = reg, .op = op };
+  Instruction i = {.kind = INST_DEF, .reg = reg, .op = op};
   return i;
 }
 
 static
 Instruction inst_print(Operation op) {
   assert(op.kind == OP_SIMPLE);
-  Instruction i = { .kind = INST_PRINT, .op = op };
+  Instruction i = {.kind = INST_PRINT, .op = op};
   return i;
 }
 
 static
 Instruction inst_br_uncond(int lbl) {
-  Instruction i = { .kind = INST_BR_UNCOND, .uncond_lbl = lbl };
+  Instruction i = {.kind = INST_BR_UNCOND, .uncond_lbl = lbl};
   return i;
 }
 
 static
 Instruction inst_br_cond(Value val, int lbl1, int lbl2) {
-  Instruction i = { .kind = INST_BR_COND, .cond_val = val, .then = lbl1, .els = lbl2 };
+  Instruction i = {
+      .kind = INST_BR_COND, .cond_val = val, .then = lbl1, .els = lbl2};
   return i;
 }
 
@@ -180,153 +228,81 @@ void inst_print_out(Instruction i) {
 static
 void bb_print(BasicBlock bb) {
   printf("preds: ");
-  if (buf_len(bb.preds)) {
+  if (bb.preds.len()) {
     printf("%d", bb.preds[0]);
-    LOOPu32(i, 1, buf_len(bb.preds)) {
+    LOOP(i, 1, bb.preds.len()) {
       printf(", %d", bb.preds[i]);
     }
   }
   printf("    succs: ");
-  if (buf_len(bb.succs)) {
+  if (bb.succs.len()) {
     printf("%d", bb.succs[0]);
-    LOOPu32(i, 1, buf_len(bb.succs)) {
+    LOOP(i, 1, bb.succs.len()) {
       printf(", %d", bb.succs[i]);
     }
   }
   printf("\n");
   printf("-----------------\n");
-  LOOPu32(i, 0, buf_len(bb.insts)) {
-    inst_print_out(bb.insts[i]);
+  for (Instruction inst : bb.insts) {
+    inst_print_out(inst);
     printf("\n");
   }
   printf("-----------------\n");
 }
 
-static
-void bb_initialize(BasicBlock *bb) {
-  bb->insts = NULL;
-  bb->preds = NULL;
-  bb->succs = NULL;
-}
-
-static
-void cfg_construct(CFG *cfg) {
-  cfg->bbs = NULL;
-}
-
-static
-void cfg_construct_reserve(CFG *cfg, uint32_t nbbs) {
-  cfg->bbs = NULL;
-  buf_reserve_and_set(cfg->bbs, nbbs);
-  BasicBlock *end = buf_end(cfg->bbs);
-  for (BasicBlock *it = cfg->bbs; it != end; ++it) {
-    bb_initialize(it);
-  }
-}
-
-static
-void cfg_destruct(CFG *cfg) {
-  LOOPu32(i, 0, buf_len(cfg->bbs)) {
-    BasicBlock bb = cfg->bbs[i];
-    if (bb.insts)
-      buf_free(bb.insts);
-    if (bb.preds)
-      buf_free(bb.preds);
-    if (bb.succs)
-      buf_free(bb.succs);
-  }
-  buf_free(cfg->bbs);
-}
-
-// Add edges b -> [succs], where b is indexed basic block
-// in cfg.bbs. Set both succs and preds.
-static
-void cfg_add_edges(CFG cfg, int b, int *succs, size_t nsuccs) {
-  assert(b < buf_len(cfg.bbs));
-  assert(cfg.bbs[b].succs == NULL);
-  BasicBlock *bb = &(cfg.bbs[b]);
-  buf_reserve(bb->succs, nsuccs);
-  for (size_t i = 0; i != nsuccs; ++i) {
-    int succ = succs[i];
-    assert(succ < buf_len(cfg.bbs));
-    buf_push(bb->succs, succ);
-    buf_push(cfg.bbs[succ].preds, b);
-  }
-}
-
-static
-void cfg_add_edge(CFG cfg, int source, int dest) {
-  assert(source < buf_len(cfg.bbs));
-  assert(dest < buf_len(cfg.bbs));
-  buf_push(cfg.bbs[source].succs, dest);
-  buf_push(cfg.bbs[dest].preds, source);
-}
-
-static
-int bb_has_successor(BasicBlock a, int bb_id) {
-  int *succs = a.succs;
-  LOOP(i, 0, buf_len(succs)) {
-    if (succs[i] == bb_id)
-      return 1;
-  }
-  return 0;
-}
-
-/* Special CFG constructors */
-
-// Linear cfg i.e. BB_n -> BB_{n+1}
-static
-CFG linear_cfg(int nelems) {
-  CFG cfg;
-  cfg_construct_reserve(&cfg, nelems);
-  LOOP(i, 0, nelems - 1) {
-    cfg_add_edge(cfg, i, i + 1);
-  }
-  return cfg;
-}
-
-// Alternate between:
-// - BB_n -> BB_{n+1}
-// - BB_n -> [ BB_{n+1}, BB_{n-1} ]
-static
-CFG fwdback_cfg(int nelems) {
-  CFG cfg;
-  cfg_construct_reserve(&cfg, nelems);
-  LOOP(i, 0, nelems - 1) {
-    if (i % 2 == 0) {
-      cfg_add_edge(cfg, i, i+1);
-    } else {
-      cfg_add_edge(cfg, i, i+1);
-      cfg_add_edge(cfg, i, i-1);
-    }
-  }
-  return cfg;
-}
-
-// genManyPred creates an array of blocks where 1/3rd have a successor of the
-// first block, 1/3rd the last block, and the remaining third are plain.
-static
-CFG manypred_cfg(int nelems) {
-  CFG cfg;
-  cfg_construct_reserve(&cfg, nelems);
-  LOOP(i, 0, nelems - 1) {
-    switch (i % 3) {
-    case 0:
-      cfg_add_edge(cfg, i, i+1);
-      break;
-    case 1:
-      cfg_add_edge(cfg, i, i+1);
-      cfg_add_edge(cfg, i, 0);
-      break;
-    case 2:
-      cfg_add_edge(cfg, i, i+1);
-      cfg_add_edge(cfg, i, nelems-1);
-      break;
-    default:
-      assert(0);
-    }
-  }
-  return cfg;
-}
+///* Special CFG constructors */
+//
+//// Linear cfg i.e. BB_n -> BB_{n+1}
+//static
+//CFG linear_cfg(int nelems) {
+//  CFG cfg;
+//  cfg_construct_reserve(&cfg, nelems);
+//  LOOP(i, 0, nelems - 1) { cfg_add_edge(cfg, i, i + 1); }
+//  return cfg;
+//}
+//
+//// Alternate between:
+//// - BB_n -> BB_{n+1}
+//// - BB_n -> [ BB_{n+1}, BB_{n-1} ]
+//static
+//CFG fwdback_cfg(int nelems) {
+//  CFG cfg;
+//  cfg_construct_reserve(&cfg, nelems);
+//  LOOP(i, 0, nelems - 1) {
+//    if (i % 2 == 0) {
+//      cfg_add_edge(cfg, i, i + 1);
+//    } else {
+//      cfg_add_edge(cfg, i, i + 1);
+//      cfg_add_edge(cfg, i, i - 1);
+//    }
+//  }
+//  return cfg;
+//}
+//
+//// genManyPred creates an array of blocks where 1/3rd have a successor of the
+//// first block, 1/3rd the last block, and the remaining third are plain.
+//static
+//CFG manypred_cfg(int nelems) {
+//  CFG cfg;
+//  cfg_construct_reserve(&cfg, nelems);
+//  LOOP(i, 0, nelems - 1) {
+//    switch (i % 3) {
+//    case 0:
+//      cfg_add_edge(cfg, i, i + 1);
+//      break;
+//    case 1:
+//      cfg_add_edge(cfg, i, i + 1);
+//      cfg_add_edge(cfg, i, 0);
+//      break;
+//    case 2:
+//      cfg_add_edge(cfg, i, i + 1);
+//      cfg_add_edge(cfg, i, nelems - 1);
+//      break;
+//    default:
+//      assert(0);
+//    }
+//  }
+//  return cfg;
+//}
 
 #endif

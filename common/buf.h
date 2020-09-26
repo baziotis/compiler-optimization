@@ -1,72 +1,107 @@
-#ifndef BUF
-#define BUF
+#ifndef BUF_H
+#define BUF_H
 
-// Per Vognsen's implementation of Sean Barrett's stretchy buffer.
-
-#include <assert.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <limits>
 #include <stdlib.h>
 
-// It's usual for the MAX to have been defined
-#ifndef MAX
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
-#endif
+#include "stefanos.h"
 
-typedef struct __BufHdr {
-    size_t len;
-    size_t cap;
-    char buf[];
-} __BufHdr;
+template <typename T>
+struct Buf {
+  // Members
+  size_t cap, _len;
+  T *data;
 
-#define buf__hdr(b) ((__BufHdr *)((char *)(b) - offsetof(__BufHdr, buf)))
+  // Typedefs
+  typedef T *iterator;
+  typedef const T *const_iterator;
 
-#define buf_len(b) ((b) ? buf__hdr(b)->len : 0)
-#define buf_cap(b) ((b) ? buf__hdr(b)->cap : 0)
-#define buf_end(b) ((b) + buf_len(b))
-#define buf_sizeof(b) ((b) ? buf_len(b)*sizeof(*b) : 0)
-
-#define buf_free(b) ((b) ? (free(buf__hdr(b)), (b) = NULL) : 0)
-#define buf_reserve(b, n) ((n) <= buf_cap(b) ? 0 : ((b) = buf__grow((b), (n), sizeof(*(b)))))
-#define buf_reserve_and_set(b, n) (buf_reserve(b, n), buf__hdr(b)->len = n)
-#define buf_push(b, ...) (buf_reserve((b), 1 + buf_len(b)), (b)[buf__hdr(b)->len++] = (__VA_ARGS__))
-#define buf_compact(b) ((buf_len(b) < buf_cap(b)) ? ((b) = buf__compact((b), sizeof(*(b)))) : 0 )
-#define buf_clear(b) ((b) ? buf__hdr(b)->len = 0 : 0)
-
-static
-void *buf__compact(void *b, size_t elem_size) {
-  size_t old_len = buf_len(b);
-  size_t old_cap = buf_cap(b);
-  if (old_len < old_cap) {
-    size_t new_size = offsetof(__BufHdr, buf) + old_len*elem_size;
-    __BufHdr *new_hdr;
-    new_hdr = realloc(buf__hdr(b), new_size);
-    assert(new_hdr);
-    new_hdr->len = old_len;
-    new_hdr->cap = old_len;
-    return new_hdr->buf;
+  Buf() {
+    cap = _len = 0;
+    data = nullptr;
   }
-  return b;
-}
 
-static
-void *buf__grow(const void *buf, size_t new_len, size_t elem_size) {
-    assert(buf_cap(buf) <= (SIZE_MAX - 1)/2);
-    size_t new_cap = MAX(2*buf_cap(buf), MAX(new_len, 16));
+  Buf(size_t n) : Buf() { reserve(n); }
+
+private:
+  void _grow(size_t new_len) {
+    constexpr size_t size_t_max = std::numeric_limits<size_t>::max();
+    assert(cap <= (size_t_max - 1) / 2);
+    size_t new_cap = MAX(MAX(2 * cap, new_len), 16);
     assert(new_len <= new_cap);
-    assert(new_cap <= (SIZE_MAX - offsetof(__BufHdr, buf))/elem_size);
-    size_t new_size = offsetof(__BufHdr, buf) + new_cap*elem_size;
-    __BufHdr *new_hdr;
-    if (buf) {
-        new_hdr = realloc(buf__hdr(buf), new_size);
-        assert(new_hdr);
-    } else {
-        new_hdr = malloc(new_size);
-        assert(new_hdr);
-        new_hdr->len = 0;
+    assert(new_cap <= (size_t_max) / sizeof(T));
+    size_t new_size = new_cap * sizeof(T);
+    data = (T *)realloc(data, new_size);
+    assert(data);
+    cap = new_cap;
+  }
+
+public:
+  
+  void initialize() {
+    for (T &t : *this) {
+      new (&t) T();
     }
-    new_hdr->cap = new_cap;
-    return new_hdr->buf;
-}
+  }
+
+  void push(T v) {
+    size_t new_len = _len + 1;
+    if (new_len > cap)
+      _grow(new_len);
+    data[_len] = v;
+    _len = new_len;
+  }
+
+  void reserve(size_t n) {
+    assert(_len == 0 && cap == 0);
+    _grow(n);
+    cap = n;
+  }
+
+  void reserve_and_set(size_t n) {
+    reserve(n);
+    _len = n;
+  }
+
+  size_t len() const {
+    return _len;
+  }
+
+  void compact() {
+    size_t old_len = _len;
+    _grow(old_len);
+    _len = cap = old_len;
+  }
+
+  void free() {
+    if (data != nullptr)
+      ::free(data);
+    _len = 0;
+    cap = 0;
+  }
+
+  Buf<T> deep_copy() {
+    Buf<T> copy(cap);
+    memcpy(copy.data, data, _len * sizeof(T));
+    copy._len = _len;
+    return copy;
+  }
+
+  void clear() { _len = 0; }
+
+  const T &back() const {
+    assert(_len >= 1);
+    return data[_len - 1];
+  }
+
+  T &operator[](size_t i) { return data[i]; }
+  const T &operator[](size_t i) const { return data[i]; }
+
+  inline iterator begin() { return this->data; }
+  inline const_iterator begin() const { return this->data; }
+
+  inline iterator end() { return &this->data[_len]; }
+  inline const_iterator end() const { return &this->data[_len]; }
+};
 
 #endif

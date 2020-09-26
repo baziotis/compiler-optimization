@@ -7,7 +7,7 @@
 #include "dom_frontiers.h"
 
 void print_bitset(BitSet bset) {
-  LOOPu32(i, 0, bset.max_elems) {
+  LOOP(i, 0, bset.max_elems) {
     if (bset_is_in(bset, i)) {
       printf("%d ", i);
     }
@@ -15,7 +15,7 @@ void print_bitset(BitSet bset) {
 }
 
 void print_dom_fronts(DominanceFrontiers dom_fronts) {
-  LOOPu32(i, 0, buf_len(dom_fronts.DF)) {
+  LOOPu32(i, 0, dom_fronts.DF.len()) {
     printf("%d: ", i);
     print_bitset(dom_fronts.DF[i]);
     printf("\n");
@@ -25,7 +25,7 @@ void print_dom_fronts(DominanceFrontiers dom_fronts) {
 int main(int argc, char **argv) {
   assert(argc == 2);
   CFG cfg = parse_procedure(argv[1], NULL);
-  DominatorTree dtree = dtree_build(cfg);
+  DominatorTree dtree(cfg);
 
   printf("\n-- Dominators --\n");
   print_dominators(cfg, dtree);
@@ -35,6 +35,5 @@ int main(int argc, char **argv) {
   print_dom_fronts(dfronts);
 
   dom_frontiers_free(dfronts);
-  dtree_free(dtree);
-  cfg_destruct(&cfg);
+  cfg.destruct();
 }

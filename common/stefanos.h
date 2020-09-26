@@ -47,6 +47,4 @@ static int sadd(int x, int y) {
   out = (time_taken + (e.tv_usec - s.tv_usec)) * 1e-6; \
 }
 
-#include "buf.h"
-
 #endif

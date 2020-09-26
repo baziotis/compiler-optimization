@@ -1,1 +1,1 @@
-clang print_nat_loops.c ../common/parser_ir.c -o print_nat_loops
+clang++ print_nat_loops.cpp -o print_nat_loops -Wall -Wno-unused-function
