@@ -36,12 +36,12 @@ DominanceFrontiers dom_frontiers(const CFG cfg, const DominatorTree dtree) {
 
   size_t base_size = sizeof(BitSet64) * num_words(nbbs);
   uint8_t *mem = (uint8_t *) calloc(base_size, nbbs);
-  LOOPu32(i, 0, nbbs) {
+  LOOP(i, 0, nbbs) {
     DF[i] = bset_mem(nbbs, mem);
     mem += base_size;
   }
 
-  LOOPu32(n, 0, nbbs) {
+  LOOP(n, 0, nbbs) {
     int idom_of_n = dtree.idom(n);
     BasicBlock bb = cfg.bbs[n];
     if (is_join_point(bb)) {

@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 #include "buf.h"
+#include "list.h"
 #include "stefanos.h"
 
 //   Note that with such few kinds, you could use one kind for all, e.g.
@@ -30,14 +31,16 @@ typedef struct Operation {
   Value lhs, rhs;
 } Operation;
 
-typedef enum INST {
-  INST_DEF,
-  INST_PRINT,
-  INST_BR_COND,
-  INST_BR_UNCOND,
-} INST;
+enum class INST {
+  DEF,
+  PRINT,
+  BR_COND,
+  BR_UNCOND,
+};
 
-typedef struct Instruction {
+struct BasicBlock;
+
+struct Instruction : ListNode<Instruction, BasicBlock> {
   INST kind;
   union {
     uint32_t reg;
@@ -51,13 +54,49 @@ typedef struct Instruction {
       int els;
     };
   };
-} Instruction;
+
+  static Instruction *def(uint32_t reg, Operation op) {
+    Instruction *i = new Instruction;
+    i->kind = INST::DEF;
+    i->reg = reg;
+    i->op = op;
+    return i;
+  }
+
+  static Instruction *print(Operation op) {
+    Instruction *i = new Instruction;
+    i->kind = INST::PRINT;
+    i->op = op;
+    return i;
+  }
+
+  static Instruction *br_uncond(int lbl) {
+    Instruction *i = new Instruction;
+    i->kind = INST::BR_UNCOND;
+    i->uncond_lbl = lbl;
+    return i;
+  }
+
+  static Instruction *br_cond(Value val, int lbl1, int lbl2) {
+    Instruction *i = new Instruction;
+    i->kind = INST::BR_COND;
+    i->cond_val = val;
+    i->then = lbl1;
+    i->els = lbl2;
+    return i;
+  }
+};
 
 struct BasicBlock {
   int num;
   Buf<int> succs;
   Buf<int> preds;
-  Buf<Instruction> insts;
+  using InstListTy = ListWithParent<Instruction, BasicBlock>;
+  InstListTy insts;
+
+  InstListTy *get_sublist() {
+    return &insts;
+  }
 
   BasicBlock() {}
 
@@ -67,6 +106,10 @@ struct BasicBlock {
         return true;
     }
     return false;
+  }
+
+  void insert_inst_at_end(Instruction *inst) {
+    insts.insert_at_end(inst);
   }
 };
 
@@ -86,7 +129,6 @@ struct CFG {
 
   void destruct() {
     for (BasicBlock &bb : bbs) {
-      bb.insts.free();
       bb.preds.free();
       bb.succs.free();
     }
@@ -114,7 +156,7 @@ struct CFG {
     this->bbs[dest].preds.push(source);
   }
 
-  size_t size() const {
+  ssize_t size() const {
     return bbs.len();
   }
 };
@@ -179,45 +221,19 @@ void op_print(Operation op) {
 }
 
 static
-Instruction inst_def(uint32_t reg, Operation op) {
-  Instruction i = {.kind = INST_DEF, .reg = reg, .op = op};
-  return i;
-}
-
-static
-Instruction inst_print(Operation op) {
-  assert(op.kind == OP_SIMPLE);
-  Instruction i = {.kind = INST_PRINT, .op = op};
-  return i;
-}
-
-static
-Instruction inst_br_uncond(int lbl) {
-  Instruction i = {.kind = INST_BR_UNCOND, .uncond_lbl = lbl};
-  return i;
-}
-
-static
-Instruction inst_br_cond(Value val, int lbl1, int lbl2) {
-  Instruction i = {
-      .kind = INST_BR_COND, .cond_val = val, .then = lbl1, .els = lbl2};
-  return i;
-}
-
-static
 void inst_print_out(Instruction i) {
   printf("  ");
   switch (i.kind) {
-  case INST_DEF:
+  case INST::DEF:
     printf("%%%u <- ", i.reg);
     break;
-  case INST_PRINT:
+  case INST::PRINT:
     printf("PRINT ");
     break;
-  case INST_BR_UNCOND:
+  case INST::BR_UNCOND:
     printf("BR .%d\t\t", i.uncond_lbl);
     return;
-  case INST_BR_COND:
+  case INST::BR_COND:
     printf("BR ");
     val_print(i.cond_val);
     printf(", .%d, .%d\t", i.then, i.els);
@@ -247,8 +263,8 @@ void bb_print(BasicBlock bb) {
     }
   }
   printf("\n");
-  for (Instruction inst : bb.insts) {
-    inst_print_out(inst);
+  for (Instruction *inst : bb.insts) {
+    inst_print_out(*inst);
     printf("\n");
   }
   printf("-----------------\n");

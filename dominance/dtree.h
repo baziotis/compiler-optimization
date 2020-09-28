@@ -109,7 +109,7 @@ struct DominatorTree {
     return dominates(0, bb);
   }
 
-  size_t size() const {
+  ssize_t size() const {
     return idoms.len();
   }
 

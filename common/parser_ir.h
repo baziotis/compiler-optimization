@@ -341,14 +341,14 @@ int starts_value(void) { return (is_token(TOK_REG) || is_token(TOK_INTLIT)); }
 static int __max_reg_used;
 
 static
-Instruction parse_instruction(int bb_num, CFG cfg) {
-  Instruction i;
+Instruction *parse_instruction(int bb_num, CFG cfg) {
+  Instruction *i;
   switch (token.kind) {
   case TOK_REG: {
     int reg = token.val;
     next_token();
     expect_token(TOK_LARROW);
-    i = inst_def(reg, parse_operation());
+    i = Instruction::def(reg, parse_operation());
     __max_reg_used = MAX(__max_reg_used, reg);
   } break;
   case TOK_PRINT: {
@@ -357,14 +357,14 @@ Instruction parse_instruction(int bb_num, CFG cfg) {
     if (op.kind != OP_SIMPLE) {
       fatal_error("Only simple Operations for PRINT");
     }
-    i = inst_print(op);
+    i = Instruction::print(op);
   } break;
   case TOK_BR: {
     next_token();
     int lbl = token.val;
     if (match_token(TOK_LBL)) {
       cfg.add_edge(bb_num, lbl);
-      i = inst_br_uncond(lbl);
+      i = Instruction::br_uncond(lbl);
     } else {
       assert(starts_value());
       Value val = parse_value();
@@ -374,7 +374,7 @@ Instruction parse_instruction(int bb_num, CFG cfg) {
       expect_token(TOK_COMMA);
       int lbl2 = token.val;
       expect_token(TOK_LBL);
-      i = inst_br_cond(val, lbl1, lbl2);
+      i = Instruction::br_cond(val, lbl1, lbl2);
       // Add edges to the CFG
       cfg.add_edge(bb_num, lbl1);
       cfg.add_edge(bb_num, lbl2);
@@ -408,7 +408,7 @@ void parse_bb(CFG cfg) {
   expect_token(TOK_COLON);
   expect_token(TOK_NL);
   while (starts_instruction()) {
-    cfg.bbs[bb_num].insts.push(parse_instruction(bb_num, cfg));
+    cfg.bbs[bb_num].insts.insert_at_end(parse_instruction(bb_num, cfg));
   }
 }
 

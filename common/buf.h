@@ -63,7 +63,7 @@ public:
     _len = n;
   }
 
-  size_t len() const {
+  ssize_t len() const {
     return _len;
   }
 

@@ -34,28 +34,28 @@ void print_bitset(BitSet s) {
 // Assume bitsets are allocated and initialized to 0
 static
 void gather_info_for_block(const BasicBlock bb, BitSet UEVar, BitSet VarKill) {
-  for (Instruction i : bb.insts) {
-    switch (i.kind) {
-    case INST_DEF:
+  for (Instruction *i : bb.insts) {
+    switch (i->kind) {
+    case INST::DEF:
     {
-      Operation op = i.op;
+      Operation op = i->op;
       Value lhs = op.lhs;
       Value rhs = op.rhs;
       add_if_not_in_VarKill(lhs, UEVar, VarKill);
       if (op.kind != OP_SIMPLE) {
         add_if_not_in_VarKill(rhs, UEVar, VarKill);
       }
-      bset_add(VarKill, val_strip_kind(i.reg));
+      bset_add(VarKill, val_strip_kind(i->reg));
     } break;
-    case INST_PRINT:
+    case INST::PRINT:
     {
-      add_if_not_in_VarKill(i.op.lhs, UEVar, VarKill);
+      add_if_not_in_VarKill(i->op.lhs, UEVar, VarKill);
     } break;
-    case INST_BR_COND:
+    case INST::BR_COND:
     {
-      add_if_not_in_VarKill(i.cond_val, UEVar, VarKill);
+      add_if_not_in_VarKill(i->cond_val, UEVar, VarKill);
     } break;
-    case INST_BR_UNCOND:
+    case INST::BR_UNCOND:
       // Nothing
       break;
     default:
@@ -66,7 +66,7 @@ void gather_info_for_block(const BasicBlock bb, BitSet UEVar, BitSet VarKill) {
 
 static
 LiveInitialInfo liveout_gather_initial_info(CFG cfg) {
-  LiveInitialInfo res = { .UEVar = NULL, .VarKill = NULL };
+  LiveInitialInfo res;
   uint32_t nbbs = cfg.size();
   res.UEVar.reserve_and_set(nbbs);
   res.VarKill.reserve_and_set(nbbs);
