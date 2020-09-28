@@ -56,7 +56,7 @@ VAL val_kind(Value v) { return (VAL)(v >> 31); }
 static
 Value val_strip_kind(Value v) {
   // Strip the MSB
-  return v & (~(1U << 31));
+  return v & (~MSB);
 }
 
 static
