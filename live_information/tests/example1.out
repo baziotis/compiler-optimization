@@ -1,6 +1,6 @@
 Number of BBs: 5
 -----------------
-.0:         ;; preds:     succs: 1
+.0:                         ;; preds:  --  succs: 1
   %0 <- 1
   BR .1		
 -----------------
@@ -9,7 +9,7 @@ Number of BBs: 5
 	VarKill: 0 
 
 -----------------
-.1:         ;; preds: 0, 3    succs: 2, 3
+.1:                         ;; preds: 0, 3 --  succs: 2, 3
   PRINT %0
   BR %0, .2, .3	
 -----------------
@@ -18,7 +18,7 @@ Number of BBs: 5
 	VarKill: 
 
 -----------------
-.2:         ;; preds: 1    succs: 3
+.2:                         ;; preds: 1 --  succs: 3
   %1 <- 0
   BR .3		
 -----------------
@@ -27,7 +27,7 @@ Number of BBs: 5
 	VarKill: 1 
 
 -----------------
-.3:         ;; preds: 1, 2    succs: 1, 4
+.3:                         ;; preds: 1, 2 --  succs: 1, 4
   %1 <- %1 + %0
   %0 <- %0 + 1
   BR %0, .1, .4	
@@ -37,7 +37,7 @@ Number of BBs: 5
 	VarKill: 0 1 
 
 -----------------
-.4:         ;; preds: 3    succs: 
+.4:                         ;; preds: 3 --  succs: 
   PRINT %1
 -----------------
 

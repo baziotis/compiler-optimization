@@ -31,136 +31,6 @@ typedef struct Operation {
   Value lhs, rhs;
 } Operation;
 
-enum class INST {
-  DEF,
-  PRINT,
-  BR_COND,
-  BR_UNCOND,
-};
-
-struct BasicBlock;
-
-struct Instruction : ListNode<Instruction, BasicBlock> {
-  INST kind;
-  union {
-    uint32_t reg;
-    int uncond_lbl;
-    Value cond_val;
-  };
-  union {
-    Operation op;
-    struct {
-      int then;
-      int els;
-    };
-  };
-
-  static Instruction *def(uint32_t reg, Operation op) {
-    Instruction *i = new Instruction;
-    i->kind = INST::DEF;
-    i->reg = reg;
-    i->op = op;
-    return i;
-  }
-
-  static Instruction *print(Operation op) {
-    Instruction *i = new Instruction;
-    i->kind = INST::PRINT;
-    i->op = op;
-    return i;
-  }
-
-  static Instruction *br_uncond(int lbl) {
-    Instruction *i = new Instruction;
-    i->kind = INST::BR_UNCOND;
-    i->uncond_lbl = lbl;
-    return i;
-  }
-
-  static Instruction *br_cond(Value val, int lbl1, int lbl2) {
-    Instruction *i = new Instruction;
-    i->kind = INST::BR_COND;
-    i->cond_val = val;
-    i->then = lbl1;
-    i->els = lbl2;
-    return i;
-  }
-};
-
-struct BasicBlock {
-  int num;
-  Buf<int> succs;
-  Buf<int> preds;
-  using InstListTy = ListWithParent<Instruction, BasicBlock>;
-  InstListTy insts;
-
-  InstListTy *get_sublist() {
-    return &insts;
-  }
-
-  BasicBlock() {}
-
-  bool has_successor(int bb_id) const {
-    for (int succ : succs) {
-      if (succ == bb_id)
-        return true;
-    }
-    return false;
-  }
-
-  void insert_inst_at_end(Instruction *inst) {
-    insts.insert_at_end(inst);
-  }
-};
-
-// TODO: Since basic blocks are identified by ID, which is
-// an integer, it might be good to make a custom type, like
-// BasicBlockID or sth. and just use `int`.
-struct CFG {
-  Buf<BasicBlock> bbs;
-
-  CFG(size_t nbbs) {
-    bbs.reserve_and_set(nbbs);
-    bbs.initialize();
-    LOOP(i, 0, bbs.len()) {
-      bbs[i].num = i;
-    }
-  }
-
-  void destruct() {
-    for (BasicBlock &bb : bbs) {
-      bb.preds.free();
-      bb.succs.free();
-    }
-    bbs.free();
-  }
-
-  // Add edges b -> [succs], where b is indexed basic block
-  // in cfg.bbs. Set both succs and preds.
-  void add_edges(int b, Buf<int> succs) {
-    assert(b < this->size());
-    BasicBlock *bb = &(this->bbs[b]);
-    assert(bb->succs.len() == 0);
-    bb->succs.reserve(succs.len());
-    for (int succ : succs) {
-      assert(succ < this->size());
-      bb->succs.push(succ);
-      this->bbs[succ].preds.push(b);
-    }
-  }
-
-  void add_edge(int source, int dest) {
-    assert(source < this->size());
-    assert(dest < this->size());
-    this->bbs[source].succs.push(dest);
-    this->bbs[dest].preds.push(source);
-  }
-
-  ssize_t size() const {
-    return bbs.len();
-  }
-};
-
 // IMPORTANT: This setup of Value requires to strip it every time
 // you use it.
 
@@ -220,55 +90,195 @@ void op_print(Operation op) {
   }
 }
 
-static
-void inst_print_out(Instruction i) {
-  printf("  ");
-  switch (i.kind) {
-  case INST::DEF:
-    printf("%%%u <- ", i.reg);
-    break;
-  case INST::PRINT:
-    printf("PRINT ");
-    break;
-  case INST::BR_UNCOND:
-    printf("BR .%d\t\t", i.uncond_lbl);
-    return;
-  case INST::BR_COND:
-    printf("BR ");
-    val_print(i.cond_val);
-    printf(", .%d, .%d\t", i.then, i.els);
-    return;
-  default:
-    assert(0);
-  }
-  op_print(i.op);
-}
+enum class INST {
+  DEF,
+  PRINT,
+  BR_COND,
+  BR_UNCOND,
+};
 
-static
-void bb_print(BasicBlock bb) {
-  printf("-----------------\n");
-  printf(".%d:         ;; ", bb.num);
-  printf("preds: ");
-  if (bb.preds.len()) {
-    printf("%d", bb.preds[0]);
-    LOOP(i, 1, bb.preds.len()) {
-      printf(", %d", bb.preds[i]);
-    }
+struct BasicBlock;
+
+struct Instruction : ListNode<Instruction, BasicBlock> {
+  INST kind;
+  union {
+    uint32_t reg;
+    int uncond_lbl;
+    Value cond_val;
+  };
+  union {
+    Operation op;
+    struct {
+      int then;
+      int els;
+    };
+  };
+
+  static Instruction *def(uint32_t reg, Operation op) {
+    Instruction *i = new Instruction;
+    i->kind = INST::DEF;
+    i->reg = reg;
+    i->op = op;
+    return i;
   }
-  printf("    succs: ");
-  if (bb.succs.len()) {
-    printf("%d", bb.succs[0]);
-    LOOP(i, 1, bb.succs.len()) {
-      printf(", %d", bb.succs[i]);
-    }
+
+  static Instruction *print(Operation op) {
+    Instruction *i = new Instruction;
+    i->kind = INST::PRINT;
+    i->op = op;
+    return i;
   }
-  printf("\n");
-  for (Instruction *inst : bb.insts) {
-    inst_print_out(*inst);
+
+  static Instruction *br_uncond(int lbl) {
+    Instruction *i = new Instruction;
+    i->kind = INST::BR_UNCOND;
+    i->uncond_lbl = lbl;
+    return i;
+  }
+
+  static Instruction *br_cond(Value val, int lbl1, int lbl2) {
+    Instruction *i = new Instruction;
+    i->kind = INST::BR_COND;
+    i->cond_val = val;
+    i->then = lbl1;
+    i->els = lbl2;
+    return i;
+  }
+
+  void print_out() {
+    printf("  ");
+    switch (kind) {
+    case INST::DEF:
+      printf("%%%u <- ", reg);
+      break;
+    case INST::PRINT:
+      printf("PRINT ");
+      break;
+    case INST::BR_UNCOND:
+      printf("BR .%d\t\t", uncond_lbl);
+      return;
+    case INST::BR_COND:
+      printf("BR ");
+      val_print(cond_val);
+      printf(", .%d, .%d\t", then, els);
+      return;
+    default:
+      assert(0);
+    }
+    op_print(op);
+  }
+};
+
+struct BasicBlock {
+  int num;
+  Buf<int> succs;
+  Buf<int> preds;
+  using InstListTy = ListWithParent<Instruction, BasicBlock>;
+  InstListTy insts;
+
+  InstListTy *get_sublist() {
+    return &insts;
+  }
+
+  BasicBlock() {}
+
+  bool has_successor(int bb_id) const {
+    for (int succ : succs) {
+      if (succ == bb_id)
+        return true;
+    }
+    return false;
+  }
+
+  void insert_inst_at_end(Instruction *inst) {
+    insts.insert_at_end(inst);
+  }
+
+  void print() {
+#define BIG_INDENT \
+    for (int i = 0; i < 25; ++i) \
+      printf(" ");
+
+    printf(".%d:", num);
+    BIG_INDENT;
+    printf(";; preds: ");
+    if (preds.len()) {
+      printf("%d", preds[0]);
+      LOOP(i, 1, preds.len()) {
+        printf(", %d", preds[i]);
+      }
+    }
+    printf(" --  succs: ");
+    if (succs.len()) {
+      printf("%d", succs[0]);
+      LOOP(i, 1, succs.len()) {
+        printf(", %d", succs[i]);
+      }
+    }
     printf("\n");
+    for (Instruction *inst : insts) {
+      inst->print_out();
+      printf("\n");
+    }
+
+#undef BIG_INDENT
   }
-  printf("-----------------\n");
-}
+};
+
+// TODO: Since basic blocks are identified by ID, which is
+// an integer, it might be good to make a custom type, like
+// BasicBlockID or sth. and just use `int`.
+struct CFG {
+  Buf<BasicBlock> bbs;
+
+  CFG(size_t nbbs) {
+    bbs.reserve_and_set(nbbs);
+    bbs.initialize();
+    LOOP(i, 0, bbs.len()) {
+      bbs[i].num = i;
+    }
+  }
+
+  void destruct() {
+    for (BasicBlock &bb : bbs) {
+      bb.preds.free();
+      bb.succs.free();
+    }
+    bbs.free();
+  }
+
+  // Add edges b -> [succs], where b is indexed basic block
+  // in cfg.bbs. Set both succs and preds.
+  void add_edges(int b, Buf<int> succs) {
+    assert(b < this->size());
+    BasicBlock *bb = &(this->bbs[b]);
+    assert(bb->succs.len() == 0);
+    bb->succs.reserve(succs.len());
+    for (int succ : succs) {
+      assert(succ < this->size());
+      bb->succs.push(succ);
+      this->bbs[succ].preds.push(b);
+    }
+  }
+
+  void add_edge(int source, int dest) {
+    assert(source < this->size());
+    assert(dest < this->size());
+    this->bbs[source].succs.push(dest);
+    this->bbs[dest].preds.push(source);
+  }
+
+  ssize_t size() const {
+    return bbs.len();
+  }
+
+  void print() {
+    for (BasicBlock bb : bbs) {
+      bb.print();
+      printf("\n");
+    }
+  }
+};
 
 ///* Special CFG constructors */
 //

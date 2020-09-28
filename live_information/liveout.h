@@ -82,15 +82,19 @@ LiveInitialInfo liveout_gather_initial_info(CFG cfg) {
     p2 += base_size;
   }
 
-  LOOPu32(i, 0, nbbs) {
-    bb_print(cfg.bbs[i]);
+  int i = 0;
+  for (BasicBlock bb : cfg.bbs) {
+    printf("-----------------\n");
+    bb.print();
+    printf("-----------------\n");
     printf("\n");
-    gather_info_for_block(cfg.bbs[i], res.UEVar[i], res.VarKill[i]);
+    gather_info_for_block(bb, res.UEVar[i], res.VarKill[i]);
     printf("\tUEVar: ");
     print_bitset(res.UEVar[i]);
     printf("\tVarKill: ");
     print_bitset(res.VarKill[i]);
     printf("\n");
+    ++i;
   }
   return res;
 }
