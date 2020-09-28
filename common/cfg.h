@@ -101,6 +101,16 @@ struct BasicBlock;
 
 struct Instruction : ListNode<Instruction, BasicBlock> {
   INST kind;
+  BasicBlock *parent;
+
+  BasicBlock *get_parent() const {
+    return parent;
+  }
+
+  void set_parent(BasicBlock *bb) {
+    parent = bb;
+  }
+
   union {
     uint32_t reg;
     int uncond_lbl;
@@ -191,6 +201,7 @@ struct BasicBlock {
   }
 
   void insert_inst_at_end(Instruction *inst) {
+    inst->set_parent(this);
     insts.insert_at_end(inst);
   }
 

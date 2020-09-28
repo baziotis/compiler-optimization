@@ -408,7 +408,7 @@ void parse_bb(CFG cfg) {
   expect_token(TOK_COLON);
   expect_token(TOK_NL);
   while (starts_instruction()) {
-    cfg.bbs[bb_num].insts.insert_at_end(parse_instruction(bb_num, cfg));
+    cfg.bbs[bb_num].insert_inst_at_end(parse_instruction(bb_num, cfg));
   }
 }
 

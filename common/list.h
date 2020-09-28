@@ -72,6 +72,7 @@ struct ListWithParent {
   size_t size;
 
   ListWithParent() {
+    size = 0;
     head = tail = nullptr;
   }
 
