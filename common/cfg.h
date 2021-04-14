@@ -291,59 +291,56 @@ struct CFG {
   }
 };
 
-///* Special CFG constructors */
-//
-//// Linear cfg i.e. BB_n -> BB_{n+1}
-//static
-//CFG linear_cfg(int nelems) {
-//  CFG cfg;
-//  cfg_construct_reserve(&cfg, nelems);
-//  LOOP(i, 0, nelems - 1) { cfg_add_edge(cfg, i, i + 1); }
-//  return cfg;
-//}
-//
-//// Alternate between:
-//// - BB_n -> BB_{n+1}
-//// - BB_n -> [ BB_{n+1}, BB_{n-1} ]
-//static
-//CFG fwdback_cfg(int nelems) {
-//  CFG cfg;
-//  cfg_construct_reserve(&cfg, nelems);
-//  LOOP(i, 0, nelems - 1) {
-//    if (i % 2 == 0) {
-//      cfg_add_edge(cfg, i, i + 1);
-//    } else {
-//      cfg_add_edge(cfg, i, i + 1);
-//      cfg_add_edge(cfg, i, i - 1);
-//    }
-//  }
-//  return cfg;
-//}
-//
-//// genManyPred creates an array of blocks where 1/3rd have a successor of the
-//// first block, 1/3rd the last block, and the remaining third are plain.
-//static
-//CFG manypred_cfg(int nelems) {
-//  CFG cfg;
-//  cfg_construct_reserve(&cfg, nelems);
-//  LOOP(i, 0, nelems - 1) {
-//    switch (i % 3) {
-//    case 0:
-//      cfg_add_edge(cfg, i, i + 1);
-//      break;
-//    case 1:
-//      cfg_add_edge(cfg, i, i + 1);
-//      cfg_add_edge(cfg, i, 0);
-//      break;
-//    case 2:
-//      cfg_add_edge(cfg, i, i + 1);
-//      cfg_add_edge(cfg, i, nelems - 1);
-//      break;
-//    default:
-//      assert(0);
-//    }
-//  }
-//  return cfg;
-//}
+/* Special CFG constructors */
+
+// Linear cfg i.e. BB_n -> BB_{n+1}
+static
+CFG linear_cfg(int nelems) {
+ CFG cfg(nelems);
+ LOOP(i, 0, nelems - 1) { cfg.add_edge(i, i + 1); }
+ return cfg;
+}
+
+// Alternate between:
+// - BB_n -> BB_{n+1}
+// - BB_n -> [ BB_{n+1}, BB_{n-1} ]
+static
+CFG fwdback_cfg(int nelems) {
+ CFG cfg(nelems);
+ LOOP(i, 0, nelems - 1) {
+   if (i % 2 == 0) {
+     cfg.add_edge(i, i + 1);
+   } else {
+     cfg.add_edge(i, i + 1);
+     cfg.add_edge(i, i - 1);
+   }
+ }
+ return cfg;
+}
+
+// genManyPred creates an array of blocks where 1/3rd have a successor of the
+// first block, 1/3rd the last block, and the remaining third are plain.
+static
+CFG manypred_cfg(int nelems) {
+ CFG cfg(nelems);
+ LOOP(i, 0, nelems - 1) {
+   switch (i % 3) {
+   case 0:
+     cfg.add_edge(i, i + 1);
+     break;
+   case 1:
+     cfg.add_edge(i, i + 1);
+     cfg.add_edge(i, 0);
+     break;
+   case 2:
+     cfg.add_edge(i, i + 1);
+     cfg.add_edge(i, nelems - 1);
+     break;
+   default:
+     assert(0);
+   }
+ }
+ return cfg;
+}
 
 #endif
