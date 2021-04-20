@@ -77,6 +77,9 @@ struct DominatorTree {
         }
       }
     } while (change);
+
+    postorder.free();
+    postorder_map.free();
   }
 
   // Return the immediate dominator of `bb`
