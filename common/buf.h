@@ -94,6 +94,11 @@ public:
     return data[_len - 1];
   }
 
+  void pop_back() {
+    assert(_len >= 1);
+    --_len;
+  }
+
   T &operator[](size_t i) { return data[i]; }
   const T &operator[](size_t i) const { return data[i]; }
 

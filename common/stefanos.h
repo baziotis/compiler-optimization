@@ -44,7 +44,7 @@ static int sadd(int x, int y) {
   stmt; \
   gettimeofday(&e, NULL); \
   out = (e.tv_sec - s.tv_sec) * 1e6; \
-  out = (time_taken + (e.tv_usec - s.tv_usec)) * 1e-6; \
+  out = (out + (e.tv_usec - s.tv_usec)) * 1e-6; \
 }
 
 #endif
